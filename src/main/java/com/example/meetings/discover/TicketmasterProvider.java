@@ -20,10 +20,14 @@ public class TicketmasterProvider implements EventProvider {
     private static final Logger log = LoggerFactory.getLogger(TicketmasterProvider.class);
 
     private final String apiKey;
+    private final String countryCode;
     private final RestClient http;
 
-    public TicketmasterProvider(@Value("${app.discover.ticketmaster.api-key:}") String apiKey) {
+    public TicketmasterProvider(
+            @Value("${app.discover.ticketmaster.api-key:}") String apiKey,
+            @Value("${app.discover.ticketmaster.country-code:PT}") String countryCode) {
         this.apiKey = apiKey;
+        this.countryCode = countryCode;
         this.http = RestClient.builder()
                 .baseUrl("https://app.ticketmaster.com/discovery/v2")
                 .build();
@@ -38,11 +42,14 @@ public class TicketmasterProvider implements EventProvider {
         if (!isConfigured()) return List.of();
         // toUriString() returns a relative path; RestClient resolves it against baseUrl.
         // Passing URI directly bypasses baseUrl resolution and breaks with "undefined scheme".
-        String path = UriComponentsBuilder.fromPath("/events.json")
+        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/events.json")
                 .queryParam("keyword", query)
                 .queryParam("size", 20)
-                .queryParam("apikey", apiKey)
-                .toUriString();
+                .queryParam("apikey", apiKey);
+        if (countryCode != null && !countryCode.isBlank()) {
+            builder.queryParam("countryCode", countryCode);
+        }
+        String path = builder.toUriString();
         try {
             Response body = http.get()
                     .uri(path)
