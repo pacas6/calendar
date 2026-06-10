@@ -1,5 +1,7 @@
 package com.example.meetings.controller;
 
+import com.example.meetings.model.User;
+import com.example.meetings.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -21,6 +23,9 @@ class ICalControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private UserRepository userRepository;
+
     @Test
     void getIcalFeed_invalidToken_returns404() throws Exception {
         mockMvc.perform(get("/ical/invalid-token.ics"))
@@ -28,37 +33,52 @@ class ICalControllerTest {
     }
 
     @Test
-    void getIcalFeed_validToken_returnsCalendar() throws Exception {
-        // Regista um user para obter o token
+    void getIcalFeed_validToken_returns200() throws Exception {
+        // Regista user para obter token real
         mockMvc.perform(post("/register")
                 .param("username", "alice")
                 .param("email", "alice@example.com")
                 .param("password", "password123")
                 .with(csrf()));
 
-        // Obtém o token do user via repositório
-        // O token é gerado automaticamente no construtor do User
-        // Fazemos login e acedemos ao calendário para obter o token
-        var result = mockMvc.perform(get("/calendar")
-                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("alice")))
-                .andReturn();
+        // Obtém o token real da BD
+        User alice = userRepository.findByUsername("alice").orElseThrow();
+        String token = alice.getIcalToken();
 
-        // Testa com token inválido — o token real seria obtido da BD
-        mockMvc.perform(get("/ical/some-random-token.ics"))
-                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/ical/" + token + ".ics"))
+                .andExpect(status().isOk());
     }
 
     @Test
     void getIcalFeed_validToken_contentTypeIsCalendar() throws Exception {
-        // Regista user
         mockMvc.perform(post("/register")
                 .param("username", "bob")
                 .param("email", "bob@example.com")
                 .param("password", "password123")
                 .with(csrf()));
 
-        // Token inválido → 404
-        mockMvc.perform(get("/ical/fake-token.ics"))
-                .andExpect(status().isNotFound());
+        User bob = userRepository.findByUsername("bob").orElseThrow();
+        String token = bob.getIcalToken();
+
+        mockMvc.perform(get("/ical/" + token + ".ics"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/calendar"));
+    }
+
+    @Test
+    void getIcalFeed_validToken_containsCalendarContent() throws Exception {
+        mockMvc.perform(post("/register")
+                .param("username", "charlie")
+                .param("email", "charlie@example.com")
+                .param("password", "password123")
+                .with(csrf()));
+
+        User charlie = userRepository.findByUsername("charlie").orElseThrow();
+        String token = charlie.getIcalToken();
+
+        mockMvc.perform(get("/ical/" + token + ".ics"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("BEGIN:VCALENDAR")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("END:VCALENDAR")));
     }
 }

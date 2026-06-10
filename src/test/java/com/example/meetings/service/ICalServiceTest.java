@@ -87,4 +87,112 @@ class ICalServiceTest {
                 organizer
         );
     }
+
+    @Test
+    void render_attendeeAccepted_partStatIsAccepted() {
+        Meeting meeting = createMeeting("Sync", owner);
+        meeting.addParticipant(new MeetingParticipant(meeting, owner, InviteStatus.ACCEPTED));
+
+        String result = iCalService.render(owner, List.of(meeting));
+
+        assertTrue(result.contains("PARTSTAT=ACCEPTED"));
+    }
+
+    @Test
+    void render_attendeeDeclined_partStatIsDeclined() {
+        User bob = new User("bob", "bob@example.com", "hash");
+        Meeting meeting = createMeeting("Sync", owner);
+        meeting.addParticipant(new MeetingParticipant(meeting, owner, InviteStatus.ACCEPTED));
+        meeting.addParticipant(new MeetingParticipant(meeting, bob, InviteStatus.DECLINED));
+
+        String result = iCalService.render(owner, List.of(meeting));
+
+        assertTrue(result.contains("PARTSTAT=DECLINED"));
+    }
+
+    @Test
+    void render_attendeePending_partStatIsNeedsAction() {
+        User bob = new User("bob", "bob@example.com", "hash");
+        Meeting meeting = createMeeting("Sync", owner);
+        meeting.addParticipant(new MeetingParticipant(meeting, owner, InviteStatus.ACCEPTED));
+        meeting.addParticipant(new MeetingParticipant(meeting, bob, InviteStatus.PENDING));
+
+        String result = iCalService.render(owner, List.of(meeting));
+
+        assertTrue(result.contains("PARTSTAT=NEEDS-ACTION"));
+    }
+
+    @Test
+    void render_descriptionWithNewline_isEscaped() {
+        Meeting meeting = new Meeting(
+                "Sync",
+                "line1\nline2",
+                Instant.parse("2025-09-01T10:00:00Z"),
+                Instant.parse("2025-09-01T11:00:00Z"),
+                owner);
+        meeting.addParticipant(new MeetingParticipant(meeting, owner, InviteStatus.ACCEPTED));
+
+        String result = iCalService.render(owner, List.of(meeting));
+
+        assertTrue(result.contains("DESCRIPTION:line1\\nline2"));
+    }
+
+    @Test
+    void render_descriptionWithBackslash_isEscaped() {
+        Meeting meeting = new Meeting(
+                "Sync",
+                "path\\to\\file",
+                Instant.parse("2025-09-01T10:00:00Z"),
+                Instant.parse("2025-09-01T11:00:00Z"),
+                owner);
+        meeting.addParticipant(new MeetingParticipant(meeting, owner, InviteStatus.ACCEPTED));
+
+        String result = iCalService.render(owner, List.of(meeting));
+
+        assertTrue(result.contains("DESCRIPTION:path\\\\to\\\\file"));
+    }
+
+    @Test
+    void render_noDescription_descriptionLineAbsent() {
+        Meeting meeting = new Meeting(
+                "Sync",
+                null,
+                Instant.parse("2025-09-01T10:00:00Z"),
+                Instant.parse("2025-09-01T11:00:00Z"),
+                owner);
+        meeting.addParticipant(new MeetingParticipant(meeting, owner, InviteStatus.ACCEPTED));
+
+        String result = iCalService.render(owner, List.of(meeting));
+
+        assertFalse(result.contains("DESCRIPTION:"));
+    }
+
+    @Test
+    void render_blankDescription_descriptionLineAbsent() {
+        Meeting meeting = new Meeting(
+                "Sync",
+                "   ",  // blank mas não null
+                Instant.parse("2025-09-01T10:00:00Z"),
+                Instant.parse("2025-09-01T11:00:00Z"),
+                owner);
+        meeting.addParticipant(new MeetingParticipant(meeting, owner, InviteStatus.ACCEPTED));
+
+        String result = iCalService.render(owner, List.of(meeting));
+
+        assertFalse(result.contains("DESCRIPTION:"));
+    }
+
+    @Test
+    void render_nullEmail_doesNotCrash() {
+        // Testa o escape() com valor null — via organizer com email null
+        User userNullEmail = new User("nomail", null, "hash");
+        Meeting meeting = new Meeting(
+                "Sync", null,
+                Instant.parse("2025-09-01T10:00:00Z"),
+                Instant.parse("2025-09-01T11:00:00Z"),
+                userNullEmail);
+        meeting.addParticipant(new MeetingParticipant(meeting, userNullEmail, InviteStatus.ACCEPTED));
+
+        assertDoesNotThrow(() -> iCalService.render(userNullEmail, List.of(meeting)));
+    }
 }

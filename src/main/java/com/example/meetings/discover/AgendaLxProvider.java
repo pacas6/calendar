@@ -30,16 +30,25 @@ import java.util.regex.Pattern;
 @Component
 public class AgendaLxProvider implements EventProvider {
 
-    private static final Logger log = LoggerFactory.getLogger(AgendaLxProvider.class);
-    private static final ZoneId LISBON = ZoneId.of("Europe/Lisbon");
-    private static final Pattern TIME = Pattern.compile("(\\d{1,2})h(\\d{0,2})");
-    private static final Pattern HTML_TAG = Pattern.compile("<[^>]+>");
+    static final Logger log = LoggerFactory.getLogger(AgendaLxProvider.class);
+    static final ZoneId LISBON = ZoneId.of("Europe/Lisbon");
+    static final Pattern TIME = Pattern.compile("(\\d{1,2})h(\\d{0,2})");
+    static final Pattern HTML_TAG = Pattern.compile("<[^>]+>");
 
     private final RestClient http;
 
     public AgendaLxProvider() {
         this.http = RestClient.builder()
                 .baseUrl("https://www.agendalx.pt/wp-json/agendalx/v1")
+                .defaultHeader("User-Agent",
+                        "Mozilla/5.0 (compatible; meetings-app/0.1; +http://localhost)")
+                .build();
+    }
+
+    // Construtor para testes
+    public AgendaLxProvider(String baseUrl) {
+        this.http = RestClient.builder()
+                .baseUrl(baseUrl)
                 .defaultHeader("User-Agent",
                         "Mozilla/5.0 (compatible; meetings-app/0.1; +http://localhost)")
                 .build();
@@ -88,7 +97,7 @@ public class AgendaLxProvider implements EventProvider {
         }
     }
 
-    private static LocalDate nextOccurrence(List<String> occurences) {
+    public static LocalDate nextOccurrence(List<String> occurences) {
         if (occurences == null || occurences.isEmpty()) return null;
         LocalDate today = LocalDate.now(LISBON);
         for (String s : occurences) {
@@ -100,7 +109,7 @@ public class AgendaLxProvider implements EventProvider {
         return null;
     }
 
-    private static java.util.Optional<LocalTime> parseTime(String stringTimes) {
+    public static java.util.Optional<LocalTime> parseTime(String stringTimes) {
         if (stringTimes == null || stringTimes.isBlank()) return java.util.Optional.empty();
         Matcher m = TIME.matcher(stringTimes);
         if (!m.find()) return java.util.Optional.empty();
@@ -114,13 +123,13 @@ public class AgendaLxProvider implements EventProvider {
         }
     }
 
-    private static String firstVenueName(Map<String, AlxVenue> venue) {
+    public static String firstVenueName(Map<String, AlxVenue> venue) {
         if (venue == null || venue.isEmpty()) return null;
         AlxVenue first = venue.values().iterator().next();
         return first != null ? first.name : null;
     }
 
-    private static String joinDescription(List<String> parts) {
+    public static String joinDescription(List<String> parts) {
         if (parts == null || parts.isEmpty()) return null;
         StringBuilder sb = new StringBuilder();
         for (String s : parts) {
@@ -146,5 +155,5 @@ public class AgendaLxProvider implements EventProvider {
     @JsonIgnoreProperties(ignoreUnknown = true)
     static class AlxTitle { public String rendered; }
     @JsonIgnoreProperties(ignoreUnknown = true)
-    static class AlxVenue { public String name; }
+    public static class AlxVenue { public String name; }
 }

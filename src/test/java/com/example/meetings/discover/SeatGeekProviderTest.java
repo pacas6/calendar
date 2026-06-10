@@ -85,4 +85,138 @@ class SeatGeekProviderTest {
 
         assertTrue(results.isEmpty());
     }
+
+    @Test
+    void constructor_default_isConfigured() {
+        SeatGeekProvider real = new SeatGeekProvider("my-client-id");
+        assertTrue(real.isConfigured());
+    }
+
+    @Test
+    void isConfigured_nullClientId_returnsFalse() {
+        SeatGeekProvider nullId = new SeatGeekProvider(null, wireMock.baseUrl());
+        assertFalse(nullId.isConfigured());
+    }
+
+    @Test
+    void search_nullClientId_returnsEmptyList() {
+        SeatGeekProvider nullId = new SeatGeekProvider(null, wireMock.baseUrl());
+        assertTrue(nullId.search("rock").isEmpty());
+    }
+
+    @Test
+    void search_bodyIsNull_returnsEmptyList() {
+        wireMock.stubFor(get(urlMatching("/events.*"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("null")));
+
+        List<DiscoveredEvent> results = provider.search("rock");
+        assertTrue(results.isEmpty());
+    }
+
+    @Test
+    void search_eventWithoutDatetime_isSkipped() {
+        wireMock.stubFor(get(urlMatching("/events.*"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                        {
+                          "events": [{
+                            "id": 1,
+                            "title": "No Date Event"
+                          }]
+                        }
+                    """)));
+
+        List<DiscoveredEvent> results = provider.search("rock");
+        assertTrue(results.isEmpty());
+    }
+
+    @Test
+    void search_eventWithInvalidDatetime_isSkipped() {
+        wireMock.stubFor(get(urlMatching("/events.*"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                        {
+                          "events": [{
+                            "id": 1,
+                            "title": "Bad Date",
+                            "datetime_utc": "not-a-date"
+                          }]
+                        }
+                    """)));
+
+        List<DiscoveredEvent> results = provider.search("rock");
+        assertTrue(results.isEmpty());
+    }
+
+    @Test
+    void search_eventWithoutVenue_venueIsNull() {
+        wireMock.stubFor(get(urlMatching("/events.*"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                        {
+                          "events": [{
+                            "id": 1,
+                            "title": "No Venue",
+                            "datetime_utc": "2025-09-01T20:00:00"
+                          }]
+                        }
+                    """)));
+
+        List<DiscoveredEvent> results = provider.search("rock");
+        assertEquals(1, results.size());
+        assertNull(results.get(0).venue());
+    }
+
+    @Test
+    void search_eventWithShortTitleOnly_usesShortTitle() {
+        wireMock.stubFor(get(urlMatching("/events.*"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                        {
+                          "events": [{
+                            "id": 1,
+                            "short_title": "Short Title",
+                            "datetime_utc": "2025-09-01T20:00:00"
+                          }]
+                        }
+                    """)));
+
+        List<DiscoveredEvent> results = provider.search("rock");
+        assertEquals(1, results.size());
+        assertEquals("Short Title", results.get(0).title());
+    }
+
+    @Test
+    void search_networkError_returnsEmptyList() {
+        wireMock.stubFor(get(urlMatching("/events.*"))
+                .willReturn(aResponse()
+                        .withFault(com.github.tomakehurst.wiremock.http.Fault.CONNECTION_RESET_BY_PEER)));
+
+        List<DiscoveredEvent> results = provider.search("rock");
+        assertNotNull(results);
+        assertTrue(results.isEmpty());
+    }
+
+    @Test
+    void search_eventsFieldIsNull_returnsEmptyList() {
+        wireMock.stubFor(get(urlMatching("/events.*"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"events\": null}")));
+
+        List<DiscoveredEvent> results = provider.search("rock");
+        assertTrue(results.isEmpty());
+    }
 }

@@ -98,4 +98,60 @@ class DiscoveryServiceTest {
 
         assertEquals(2, results.size());
     }
+
+    @Test
+    void providers_returnsList() {
+        EventProvider p = new EventProvider() {
+            public String name() { return "Fake"; }
+            public boolean isConfigured() { return true; }
+            public List<DiscoveredEvent> search(String q) { return List.of(); }
+        };
+
+        DiscoveryService service = new DiscoveryService(List.of(p));
+        assertEquals(1, service.providers().size());
+    }
+
+    @Test
+    void search_eventWithNullUrl_usesSourceAndIdAsKey() {
+        // Dois eventos sem URL mas com source+id diferente — ambos devem aparecer
+        DiscoveredEvent e1 = new DiscoveredEvent(
+                "Source1", "id1", "Event 1", null,
+                Instant.parse("2025-09-01T10:00:00Z"), null, null, null);
+        DiscoveredEvent e2 = new DiscoveredEvent(
+                "Source2", "id2", "Event 2", null,
+                Instant.parse("2025-09-02T10:00:00Z"), null, null, null);
+
+        EventProvider provider = new EventProvider() {
+            public String name() { return "Fake"; }
+            public boolean isConfigured() { return true; }
+            public List<DiscoveredEvent> search(String q) { return List.of(e1, e2); }
+        };
+
+        DiscoveryService service = new DiscoveryService(List.of(provider));
+        List<DiscoveredEvent> results = service.search("test");
+
+        assertEquals(2, results.size());
+    }
+
+    @Test
+    void search_duplicateNullUrls_deduplicatesBySouceAndId() {
+        // Dois eventos sem URL com mesmo source+id — deve deduplicar
+        DiscoveredEvent e1 = new DiscoveredEvent(
+                "Source1", "id1", "Event 1", null,
+                Instant.parse("2025-09-01T10:00:00Z"), null, null, null);
+        DiscoveredEvent e2 = new DiscoveredEvent(
+                "Source1", "id1", "Event 1 duplicate", null,
+                Instant.parse("2025-09-01T10:00:00Z"), null, null, null);
+
+        EventProvider provider = new EventProvider() {
+            public String name() { return "Fake"; }
+            public boolean isConfigured() { return true; }
+            public List<DiscoveredEvent> search(String q) { return List.of(e1, e2); }
+        };
+
+        DiscoveryService service = new DiscoveryService(List.of(provider));
+        List<DiscoveredEvent> results = service.search("test");
+
+        assertEquals(1, results.size());
+    }
 }
